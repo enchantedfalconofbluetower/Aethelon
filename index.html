@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKL Aethelon</title>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Markdown Support -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Google GenAI SDK (ESM Import Map) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.run/@google/genai"
+      }
+    }
+    </script>
+    <!-- Fonts & Styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #212121; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #424242; border-radius: 3px; }
+        .markdown-content pre { background: #1e1e1e; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; border: 1px solid #333; margin: 1rem 0; }
+        .markdown-content code { background: #2d2d2d; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875em; color: #e0e0e0; }
+        .markdown-content pre code { background: transparent; padding: 0; color: #ce9178; }
+        .markdown-content p { margin-bottom: 1rem; line-height: 1.7; }
+        .markdown-content ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-content ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-content a { color: #60a5fa; text-decoration: underline; }
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import { GoogleGenAI } from "@google/genai";
+
+        // --- CONSTANTS ---
+        const APP_NAME = "SKL Aethelon";
+        const CREATOR_NAME = "Shreeman Iyer";
+        const API_KEY = 'AIzaSyBt85OXq2WUhVTl0cq9OpSGK2TJSYwACno'; // HARDCODED FOR DEMO
+        const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
+
+        const AVAILABLE_MODELS = [
+            { id: 'gemini-2.5-flash', name: 'Aethelon Flash', description: 'Fastest model for everyday tasks', isPro: false, capabilities: { search: false, thinking: false, imageGeneration: false } },
+            { id: 'gemini-2.5-flash-search', name: 'Aethelon + Search', description: 'Up-to-date information', isPro: false, capabilities: { search: true, thinking: false, imageGeneration: false } },
+            { id: 'gemini-2.5-flash-thinking', name: 'Aethelon Thinking', description: 'Enhanced reasoning', isPro: true, capabilities: { search: false, thinking: true, thinkingBudget: 10000, imageGeneration: false } },
+            { id: 'gemini-3-pro-preview', name: 'Aethelon Pro', description: 'Complex reasoning & coding', isPro: true, capabilities: { search: false, thinking: false, imageGeneration: false } },
+            { id: 'gemini-2.5-flash-image', name: 'Aethelon Imagine', description: 'Generate AI images', isPro: true, capabilities: { search: false, thinking: false, imageGeneration: true } }
+        ];
+
+        // --- ICONS (Lucide) ---
+        const { Menu, ChevronDown, AlertCircle, Globe, BrainCircuit, Zap, Image: ImageIcon, MessageSquarePlus, PanelLeftClose, MoreHorizontal, User, ArrowUp, Paperclip, X } = window.lucide;
+
+        // --- COMPONENTS ---
+
+        const Logo = ({ className }) => (
+            <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+                <defs>
+                    <linearGradient id="grad1" x1="10%" y1="100%" x2="90%" y2="0%">
+                        <stop offset="0%" stopColor="#22c55e" /><stop offset="25%" stopColor="#eab308" /><stop offset="50%" stopColor="#ef4444" /><stop offset="75%" stopColor="#a855f7" /><stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                </defs>
+                <path d="M60 15 L105 105 H82 L72 82 H48 L38 105 H15 L60 15 Z M60 42 L52 65 H68 L60 42 Z" fill="url(#grad1)" />
+            </svg>
+        );
+
+        const Sidebar = ({ isOpen, onClose, onNewChat, history, onSelectSession, currentSessionId }) => (
+            <>
+                <div className={`fixed inset-0 z-40 bg-black/60 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={onClose} />
+                <aside className={`fixed lg:relative z-50 h-full w-[260px] flex flex-col bg-[#171717] transition-transform duration-300 lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <div className="p-3 flex justify-between">
+                        <button onClick={() => { onNewChat(); if (window.innerWidth < 1024) onClose(); }} className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#212121] text-gray-200 text-sm font-medium group border border-transparent hover:border-gray-700/50">
+                            <div className="flex items-center gap-2"><div className="w-6 h-6 rounded-full bg-[#2f2f2f] p-1"><Logo className="w-full h-full" /></div><span>New chat</span></div>
+                            <MessageSquarePlus size={16} className="opacity-0 group-hover:opacity-100 text-gray-400" />
+                        </button>
+                        <button onClick={onClose} className="lg:hidden ml-2 p-2 text-gray-400 hover:text-white"><PanelLeftClose size={20} /></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Today</div>
+                        <div className="space-y-0.5">
+                            {history.length === 0 ? <div className="px-3 py-2 text-sm text-gray-500 italic">No chat history</div> : history.map(s => (
+                                <button key={s.id} onClick={() => { onSelectSession(s.id); if (window.innerWidth < 1024) onClose(); }} className={`w-full text-left px-3 py-2.5 rounded-lg text-sm truncate relative group ${currentSessionId === s.id ? 'bg-[#212121] text-white' : 'text-gray-300 hover:bg-[#212121]'}`}>
+                                    <span className="truncate block pr-6">{s.title}</span>
+                                    {currentSessionId === s.id && <div className="absolute right-2 top-1/2 -translate-y-1/2"><MoreHorizontal size={14} className="text-gray-400" /></div>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="p-3 border-t border-gray-800/50">
+                        <div className="flex items-center gap-3 px-3 py-3 w-full text-sm text-gray-200 hover:bg-[#212121] rounded-lg cursor-pointer">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white"><User size={16} /></div>
+                            <div className="flex flex-col"><span className="font-medium">{APP_NAME}</span><span className="text-xs text-gray-500">By {CREATOR_NAME}</span></div>
+                        </div>
+                    </div>
+                </aside>
+            </>
+        );
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [sidebarOpen, setSidebarOpen] = React.useState(false);
+            const [currentModelId, setCurrentModelId] = React.useState(DEFAULT_MODEL_ID);
+            const [isModelMenuOpen, setIsModelMenuOpen] = React.useState(false);
+            const [sessions, setSessions] = React.useState([]);
+            const [currentSessionId, setCurrentSessionId] = React.useState(null);
+            const [isLoading, setIsLoading] = React.useState(false);
+            const [error, setError] = React.useState(null);
+            const [input, setInput] = React.useState("");
+
+            const messagesEndRef = React.useRef(null);
+            const aiRef = React.useRef(new GoogleGenAI({ apiKey: API_KEY }));
+
+            // Initialize
+            React.useEffect(() => {
+                if (sessions.length === 0) createNewSession();
+                window.lucide.createIcons();
+            }, []);
+
+            React.useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [sessions, currentSessionId]);
+            
+            const createNewSession = () => {
+                const newId = Date.now().toString();
+                const newSession = { id: newId, title: "New Chat", messages: [], modelId: currentModelId };
+                setSessions(prev => [newSession, ...prev]);
+                setCurrentSessionId(newId);
+                setSidebarOpen(false);
+            };
+
+            const getCurrentSession = () => sessions.find(s => s.id === currentSessionId);
+
+            const handleSendMessage = async () => {
+                if (!input.trim() || isLoading) return;
+                const currentText = input;
+                setInput("");
+                setIsLoading(true);
+
+                // Add User Message
+                const session = getCurrentSession();
+                const userMsg = { role: 'user', content: currentText };
+                const newHistory = [...session.messages, userMsg];
+                
+                // Optimistic Update
+                setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: newHistory, title: s.messages.length === 0 ? currentText.slice(0,30) : s.title } : s));
+
+                try {
+                    const modelConfig = AVAILABLE_MODELS.find(m => m.id === currentModelId);
+                    let responseText = "";
+                    let generatedImageBase64 = null;
+
+                    // --- IMAGE GENERATION ---
+                    if (modelConfig.capabilities.imageGeneration) {
+                        const model = aiRef.current.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+                        // Gemini 2.5 Flash Image uses 'generateContent' but with Modality.IMAGE
+                        // Note: SDK might differ slightly in browser, treating simplified call
+                        const result = await model.generateContent({
+                            contents: [{ role: 'user', parts: [{ text: currentText }] }],
+                            generationConfig: { responseModalities: ["IMAGE"] } 
+                        });
+                        const part = result.response.candidates[0].content.parts[0];
+                        if(part.inlineData) generatedImageBase64 = part.inlineData.data;
+                        responseText = `Generated image for: "${currentText}"`;
+                    } 
+                    // --- TEXT GENERATION ---
+                    else {
+                        const tools = modelConfig.capabilities.search ? [{ googleSearch: {} }] : [];
+                        const thinkingConfig = modelConfig.capabilities.thinking ? { thinkingBudget: 10000 } : undefined;
+                        
+                        const model = aiRef.current.getGenerativeModel({ 
+                            model: modelConfig.id,
+                            systemInstruction: `You are ${APP_NAME} created by ${CREATOR_NAME}. SKL Team: Shreyan, Veer, Aarush, Shaurya, Shivaansh.`,
+                            tools: tools
+                        });
+
+                        // Convert history for SDK
+                        const chat = model.startChat({
+                            history: session.messages.map(m => ({ role: m.role, parts: [{ text: m.content }] }))
+                        });
+
+                        const result = await chat.sendMessage(currentText);
+                        responseText = result.response.text();
+                    }
+
+                    // Add Model Message
+                    const modelMsg = { role: 'model', content: responseText, generatedImage: generatedImageBase64 };
+                    setSessions(prev => prev.map(s => s.id === currentSessionId ? { ...s, messages: [...newHistory, modelMsg] } : s));
+
+                } catch (e) {
+                    console.error(e);
+                    setError("Error: " + e.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const activeSession = getCurrentSession();
+            const currentModel = AVAILABLE_MODELS.find(m => m.id === currentModelId);
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onNewChat={createNewSession} history={sessions} onSelectSession={setCurrentSessionId} currentSessionId={currentSessionId} />
+                    
+                    <div className="flex-1 flex flex-col relative bg-[#212121]">
+                        {/* Header */}
+                        <div className="h-12 flex items-center px-4 border-b border-gray-800/50 justify-between">
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 text-gray-400"><Menu size={20} /></button>
+                                <button onClick={() => setIsModelMenuOpen(!isModelMenuOpen)} className="flex items-center gap-2 text-gray-200 font-medium hover:bg-[#2f2f2f] px-3 py-1.5 rounded-lg">
+                                    {currentModel?.name} <ChevronDown size={14} />
+                                </button>
+                            </div>
+                            {/* Model Dropdown */}
+                            {isModelMenuOpen && (
+                                <div className="absolute top-12 left-4 w-64 bg-[#2f2f2f] rounded-xl shadow-xl border border-gray-700 z-50 p-1">
+                                    {AVAILABLE_MODELS.map(m => (
+                                        <button key={m.id} onClick={() => { setCurrentModelId(m.id); setIsModelMenuOpen(false); }} className={`w-full text-left p-2 rounded-lg text-sm text-gray-200 hover:bg-[#424242] ${currentModelId === m.id ? 'bg-[#424242]' : ''}`}>
+                                            <div className="font-bold">{m.name}</div>
+                                            <div className="text-xs text-gray-400">{m.description}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Chat Area */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                            {!activeSession?.messages.length ? (
+                                <div className="h-full flex flex-col items-center justify-center text-center">
+                                    <div className="w-16 h-16 mb-6"><Logo className="w-full h-full" /></div>
+                                    <h2 className="text-2xl font-bold mb-2">I'm {APP_NAME}, how can I help?</h2>
+                                </div>
+                            ) : (
+                                <div className="max-w-3xl mx-auto space-y-6">
+                                    {activeSession.messages.map((msg, idx) => (
+                                        <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            {msg.role === 'model' && <div className="w-8 h-8 flex-shrink-0 rounded-full bg-[#2f2f2f] p-1"><Logo className="w-full h-full" /></div>}
+                                            <div className={`max-w-[85%] px-5 py-3 rounded-2xl ${msg.role === 'user' ? 'bg-[#303030] text-white' : 'text-gray-100'}`}>
+                                                {msg.generatedImage ? (
+                                                    <div>
+                                                        <img src={`data:image/jpeg;base64,${msg.generatedImage}`} className="rounded-lg shadow-lg mb-2 border border-gray-700" />
+                                                        <p className="text-sm italic text-gray-400">{msg.content}</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked.parse(msg.content) }} />
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex gap-4">
+                                            <div className="w-8 h-8 rounded-full bg-[#2f2f2f] p-1"><Logo className="w-full h-full animate-pulse" /></div>
+                                            <div className="text-gray-400 text-sm flex items-center">Generating...</div>
+                                        </div>
+                                    )}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Input Area */}
+                        <div className="p-4 bg-[#212121]">
+                            <div className="max-w-3xl mx-auto relative bg-[#2f2f2f] rounded-3xl flex items-end p-2">
+                                <button className="p-2 text-gray-400 hover:text-white"><Paperclip size={20} /></button>
+                                <textarea 
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                                    placeholder={`Message ${APP_NAME}...`}
+                                    className="flex-1 bg-transparent border-none focus:ring-0 text-white resize-none max-h-32 py-2 px-2"
+                                    rows={1}
+                                />
+                                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className={`p-2 rounded-full transition-colors ${input.trim() && !isLoading ? 'bg-white text-black' : 'bg-gray-600 text-gray-400'}`}>
+                                    <ArrowUp size={20} />
+                                </button>
+                            </div>
+                            <div className="text-center mt-2 text-xs text-gray-500">{APP_NAME} can make mistakes.</div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
